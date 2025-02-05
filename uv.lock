@@ -515,9 +515,9 @@ dev = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.36.3" },
     { name = "ephemeral-pulumi-deploy", specifier = ">=0.0.1" },
-    { name = "pulumi", specifier = ">=3.147.0" },
-    { name = "pulumi-aws", specifier = ">=6.66.3" },
-    { name = "pulumi-aws-native", specifier = ">=1.24.0" },
+    { name = "pulumi", specifier = ">=3.148.0" },
+    { name = "pulumi-aws", specifier = ">=6.67.0" },
+    { name = "pulumi-aws-native", specifier = ">=1.25.0" },
     { name = "pulumi-command", specifier = ">=1.0.1" },
     { name = "pydantic", specifier = ">=2.10.6" },
 ]
