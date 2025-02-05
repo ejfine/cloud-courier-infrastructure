@@ -9,7 +9,7 @@ class RawDataBucket(ComponentResource):
         self,
     ):
         super().__init__(
-            "labauto:AwsRawDataBucket",
+            "labauto:AwsOrgWideRawDataBucket",
             append_resource_suffix("raw-data-bucket"),
             None,
         )
