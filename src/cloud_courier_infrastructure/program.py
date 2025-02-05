@@ -4,6 +4,8 @@ from ephemeral_pulumi_deploy import get_aws_account_id
 from ephemeral_pulumi_deploy import get_config
 from pulumi import export
 
+from .bucket import RawDataBucket
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,3 +17,4 @@ def pulumi_program() -> None:
     export("aws-account-id", aws_account_id)
 
     # Create Resources Here
+    _ = RawDataBucket()
