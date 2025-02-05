@@ -1,0 +1,42 @@
+[project]
+name = "cloud-courier-infrastructure"
+version = "0.1.0"
+description = "Managing the Cloud Infrastructure for a Cloud Courier deployment"
+
+readme = "README.md"
+requires-python = ">=3.12.7"
+
+dependencies = [
+    # Specific to this template
+
+
+
+    # Managed by upstream template
+    "pulumi>=3.148.0",
+    "pulumi-aws>=6.67.0",
+    "pulumi-aws-native>=1.25.0",
+    "pulumi-command>=1.0.1",
+    "ephemeral-pulumi-deploy>=0.0.1",
+    "boto3>=1.36.3",
+    "pydantic>=2.10.6",
+]
+
+
+[dependency-groups]
+dev = [
+    # Specific to this template
+
+
+
+    # Managed by upstream template
+    "pyright>=1.1.393",
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "pytest-randomly>=3.16.0",
+    "boto3-stubs[all]>=1.36.3",
+]
+
+
+
+[tool.uv]
+package = false

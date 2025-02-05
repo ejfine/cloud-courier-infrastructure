@@ -1,0 +1,17 @@
+# Changes here will be overwritten by Copier
+_commit: ab303d6
+_src_path: gh:LabAutomationAndScreening/copier-cloud-courier-infrastructure.git
+aws_development_account_id: '423623840054'
+aws_identity_center_id: d-9067c20053
+aws_org_home_region: us-east-1
+aws_production_account_id: '872515290027'
+aws_region_for_stack: us-east-1
+aws_staging_account_id: '354918380870'
+aws_test_account_id: '423623840054'
+description: Infra for cloud courier
+python_version: 3.12.7
+repo_name: cloud-courier-infrastructure
+ssh_port_number: 52370
+use_staging_environment: true
+use_windows_in_ci: false
+
