@@ -52,7 +52,7 @@ jobs:
     needs: [ lint ]
     with:
       AWS_REGION: us-east-1
-      PULUMI_STACK_NAME: prod
+      PULUMI_STACK_NAME: staging
       PYTHON_VERSION: 3.12.7
       DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure
       PULUMI_PREVIEW: true
