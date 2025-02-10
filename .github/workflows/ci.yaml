@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - 'gh-readonly-queue/**' # don't run (again) when on these special branches created during merge groups; the `on: merge_group` already triggers it.
+  merge_group:
+  pull_request:
+
+env:
+  PYTHONUNBUFFERED: True
+  PRE_COMMIT_HOME: ${{ github.workspace }}/.precommit_cache
+
+permissions:
+    id-token: write
+    contents: write # needed for mutex
+
+jobs:
+  lint:
+    name: Pre-commit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+
+      - name: Install latest versions of python packages
+        uses: ./.github/actions/install_deps_uv
+        with:
+          python-version: 3.12.7
+
+      - name: Set up mutex # Github concurrency management is horrible, things get arbitrarily cancelled if queued up. So using mutex until github fixes itself. When multiple jobs are modifying cache at once, weird things can happen.  possible issue is https://github.com/actions/toolkit/issues/658
+        if: ${{ runner.os != 'Windows' }} # we're just gonna have to YOLO on Windows, because this action doesn't support it yet https://github.com/ben-z/gh-action-mutex/issues/14
+        uses: ben-z/gh-action-mutex@d3d5b354d460d4b6a1e3ee5b7951678658327812 # v1.0.0-alpha.9
+        with:
+          branch: mutex-venv-ubuntu-24.04-py3.12.7
+        timeout-minutes: 30 # this is the amount of time this action will wait to attempt to acquire the mutex lock before failing, e.g. if other jobs are queued up in front of it
+
+      - name: Cache Pre-commit hooks
+        uses: actions/cache@v4.2.0
+        env:
+          cache-name: cache-pre-commit-hooks
+        with:
+          path: ${{ env.PRE_COMMIT_HOME }}
+          key: ubuntu-24.04-py3.12.7-build-${{ env.cache-name }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            ubuntu-24.04-py3.12.7-build-${{ env.cache-name }}-
+
+      - name: Run pre-commit
+        run:  pre-commit run -a
+
+  get-values:
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    outputs:
+      pr-short-num: ${{ steps.find-pr-num.outputs.number }}
+    steps:
+      - name: Get the PR number
+        id: find-pr-num
+        # Based on https://github.com/actions/checkout/issues/58#issuecomment-847922894
+        run: |
+
+          [[ '${{ github.event_name }}' = 'pull_request' ]] && full_number=${{ github.event.number }}
+
+          # example message in merge group context: "Merge pull request #10 from org-name/branch-name\n\ncommit message"
+          [[ '${{ github.event_name }}' = 'merge_group' ]] && message='${{ github.event.merge_group.head_commit.message }}' && echo Extracting from $message && number_and_following_text=${message##*#} && full_number=${number_and_following_text%%[!0-9]*}
+
+          short_number=${full_number:${#full_number}<2?0:-2} # only use the last two digits so that the stack name is no more than 7 characters and doesn't get too long. Based on https://stackoverflow.com/questions/19858600/accessing-last-x-characters-of-a-string-in-bash
+
+          echo number=$(echo $short_number) >> $GITHUB_OUTPUT
+          echo "PR number extracted as $full_number and truncated to $short_number"
+
+  ephemeral-test:
+    uses: ./.github/workflows/pulumi-aws.yml
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    needs: [ lint, get-values ]
+    with:
+      AWS_REGION: us-east-1
+      PULUMI_STACK_NAME: test-${{ needs.get-values.outputs.pr-short-num }}
+      PYTHON_VERSION: 3.12.7
+      DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure
+      PULUMI_PREVIEW: true
+      PREVIEW_ROLE_NAME: InfraPreview--cloud-courier-infrastructure
+      PULUMI_UP_ROLE_NAME: InfraDeploy--cloud-courier-infrastructure
+      PULUMI_UP: true
+      PULUMI_DESTROY: true
+      AWS_ACCOUNT_ID: "423623840054"
+
+  pulumi-staging:
+    uses: ./.github/workflows/pulumi-aws.yml
+    needs: [ lint ]
+    with:
+      AWS_REGION: us-east-1
+      PULUMI_STACK_NAME: staging
+      PYTHON_VERSION: 3.12.7
+      DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure
+      PULUMI_PREVIEW: true
+      PREVIEW_ROLE_NAME: InfraPreview--cloud-courier-infrastructure
+      PULUMI_UP: ${{ github.ref == 'refs/heads/main' }}
+      PULUMI_UP_ROLE_NAME: InfraDeploy--cloud-courier-infrastructure
+      AWS_ACCOUNT_ID: "354918380870"
+
+  pulumi-prod:
+    uses: ./.github/workflows/pulumi-aws.yml
+    if: github.ref == 'refs/heads/main'
+    needs: [ pulumi-staging ]
+    with:
+      AWS_REGION: us-east-1
+      PULUMI_STACK_NAME: prod
+      PYTHON_VERSION: 3.12.7
+      DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure
+      PULUMI_PREVIEW: true
+      PREVIEW_ROLE_NAME: InfraPreview--cloud-courier-infrastructure
+      PULUMI_UP: true
+      PULUMI_UP_ROLE_NAME: InfraDeploy--cloud-courier-infrastructure
+      AWS_ACCOUNT_ID: "872515290027"
+
+
+  required-check:
+    runs-on: ubuntu-24.04
+    needs: [ get-values, lint, ephemeral-test, pulumi-staging, pulumi-prod ]
+    if: always()
+    steps:
+      - name: Show job status
+        run: |
+          echo ${{ needs.lint.result }}
+          echo ${{ needs.pulumi-staging.result }}
+          echo ${{ needs.get-values.result }}
+          echo ${{ needs.ephemeral-test.result }}
+          echo ${{ needs.pulumi-prod.result }}
+      - name: fail if prior job failure
+        if: needs.lint.result != 'success' || needs.pulumi-staging.result != 'success' || (needs.get-values.result != 'success' && needs.get-values.result != 'skipped') || (needs.ephemeral-test.result != 'success' && needs.ephemeral-test.result != 'skipped') || (needs.pulumi-prod.result != 'success' && needs.pulumi-prod.result != 'skipped')
+        run: |
+          exit 1
