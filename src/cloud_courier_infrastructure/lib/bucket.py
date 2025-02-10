@@ -65,7 +65,7 @@ class RawDataBucket(ComponentResource):
         )
         self.bucket_name = bucket.id
         _ = self.bucket_name.apply(
-            lambda bucket_name: s3.BucketPolicy(
+            lambda bucket_name: s3.BucketPolicy(  # TODO: figure out why this isn't showing up in Pulumi Preview https://github.com/pulumi/pulumi-aws-native/issues/2052
                 append_resource_suffix("raw-data-bucket-policy"),
                 bucket=bucket_name,
                 policy_document=create_bucket_policy(bucket_name),
