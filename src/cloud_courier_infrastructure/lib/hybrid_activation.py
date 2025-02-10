@@ -9,6 +9,7 @@ from pulumi import ResourceOptions
 from pulumi import export
 from pulumi_aws.iam import GetPolicyDocumentStatementArgs
 from pulumi_aws.iam import GetPolicyDocumentStatementPrincipalArgs
+from pulumi_aws.iam import RolePolicy
 from pulumi_aws.iam import get_policy_document
 from pulumi_aws.ssm import Activation
 from pulumi_aws_native import TagArgs
@@ -90,16 +91,18 @@ class OnPremNode(ComponentResource):
             managed_policy_arns=["arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"],
             tags=tags_native,
         )
-        _ = iam.RolePolicy(
-            append_resource_suffix(f"{resource_name}-create-ssm-logs"),
-            role_name=role.role_name,  # type: ignore[reportArgumentType] # pyright somehow thinks that a role_name can be None...which cannot happen
-            policy_name="create-ssm-logs",
-            policy_document=get_policy_document(
-                statements=[
-                    GetPolicyDocumentStatementArgs(
-                        effect="Allow", actions=["s3:PutObject"], resources=[f"arn:aws:s3:::{ssm_logs_bucket_name}/*"]
-                    )
-                ]
+        _ = RolePolicy(  # the native provider has some CloudControl error when the policy document had an output in it
+            append_resource_suffix(f"{resource_name}-create-ssm-logs", max_length=100),
+            role=role.role_name,  # type: ignore[reportArgumentType] # pyright somehow thinks that a role_name can be None...which cannot happen
+            name="create-ssm-logs",
+            policy=ssm_logs_bucket_name.apply(
+                lambda bucket_name: get_policy_document(
+                    statements=[
+                        GetPolicyDocumentStatementArgs(
+                            effect="Allow", actions=["s3:PutObject"], resources=[f"arn:aws:s3:::{bucket_name}/*"]
+                        )
+                    ]
+                )
             ).json,
             opts=ResourceOptions(parent=self),
         )
