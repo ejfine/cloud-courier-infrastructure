@@ -81,6 +81,7 @@ jobs:
       PULUMI_PREVIEW: true
       PREVIEW_ROLE_NAME: InfraPreview--cloud-courier-infrastructure
       PULUMI_UP_ROLE_NAME: InfraDeploy--cloud-courier-infrastructure
+      PULUMI_UP: true
       PULUMI_DESTROY: true
       AWS_ACCOUNT_ID: "423623840054"
 
