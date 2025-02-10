@@ -85,7 +85,7 @@ class OnPremNode(ComponentResource):
             tags=tags_native,
         )
         fixed_tags = common_tags()  # changes to the tags of the Activation will trigger replacement
-        fixed_tags["computer-info"] = original_resource_name
+        fixed_tags["original-computer-info"] = original_resource_name
         activation = Activation(
             append_resource_suffix(original_resource_name),
             description=f"For the computer: {resource_name}.",
