@@ -1,6 +1,7 @@
 from ephemeral_pulumi_deploy import append_resource_suffix
 from pulumi import ComponentResource
 from pulumi import ResourceOptions
+from pulumi import export
 from pulumi_aws.iam import GetPolicyDocumentStatementArgs
 from pulumi_aws.iam import GetPolicyDocumentStatementConditionArgs
 from pulumi_aws.iam import GetPolicyDocumentStatementPrincipalArgs
@@ -71,3 +72,7 @@ class RawDataBucket(ComponentResource):
                 opts=ResourceOptions(parent=self),
             ),
         )
+        export(
+            "raw-data-bucket-name", self.bucket_name
+        )  # cross-stack reference used to generate the SSO Permission Set
+        self.register_outputs({"bucket_name": self.bucket_name})
