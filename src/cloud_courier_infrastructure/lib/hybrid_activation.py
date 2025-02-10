@@ -47,16 +47,22 @@ class LabComputerConfig(BaseModel, frozen=True):
 
 
 class OnPremNode(ComponentResource):
-    def __init__(self, config: LabComputerConfig):
+    def __init__(self, *, lab_computer_config: LabComputerConfig, ssm_logs_bucket_name: Output[str]):
         aliases: list[Alias] = []
-        resource_name = f"{config.location.name}--{config.name}"
+        resource_name = f"{lab_computer_config.location.name}--{lab_computer_config.name}"
         original_resource_name = resource_name
-        if config.original_name is not None:
-            assert config.original_location is not None  # TODO: make a test for this
+        if lab_computer_config.original_name is not None:
+            assert lab_computer_config.original_location is not None  # TODO: make a test for this
             aliases.append(  # TODO: make a test for this
-                Alias(name=append_resource_suffix(f"{config.original_location.name}-{config.original_name}"))
+                Alias(
+                    name=append_resource_suffix(
+                        f"{lab_computer_config.original_location.name}-{lab_computer_config.original_name}"
+                    )
+                )
             )
-            original_resource_name = f"{config.original_location.name}--{config.original_name}"
+            original_resource_name = (
+                f"{lab_computer_config.original_location.name}--{lab_computer_config.original_name}"
+            )
         super().__init__(
             "labauto:OnPremComputer",
             append_resource_suffix(original_resource_name),
@@ -83,6 +89,19 @@ class OnPremNode(ComponentResource):
             ).json,
             managed_policy_arns=["arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"],
             tags=tags_native,
+        )
+        _ = iam.RolePolicy(
+            append_resource_suffix(f"{resource_name}-create-ssm-logs"),
+            role_name=role.role_name,  # type: ignore[reportArgumentType] # pyright somehow thinks that a role_name can be None...which cannot happen
+            policy_name="create-ssm-logs",
+            policy_document=get_policy_document(
+                statements=[
+                    GetPolicyDocumentStatementArgs(
+                        effect="Allow", actions=["s3:PutObject"], resources=[f"arn:aws:s3:::{ssm_logs_bucket_name}/*"]
+                    )
+                ]
+            ).json,
+            opts=ResourceOptions(parent=self),
         )
         fixed_tags = common_tags()  # changes to the tags of the Activation will trigger replacement
         fixed_tags["original-computer-info"] = original_resource_name
