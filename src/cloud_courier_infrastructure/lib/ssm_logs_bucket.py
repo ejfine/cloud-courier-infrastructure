@@ -1,4 +1,5 @@
 from ephemeral_pulumi_deploy import append_resource_suffix
+from ephemeral_pulumi_deploy import common_tags_native
 from pulumi import ComponentResource
 from pulumi import ResourceOptions
 from pulumi import export
@@ -28,6 +29,7 @@ class SsmLogsBucket(ComponentResource):
                     )
                 ),
             ),
+            tags=common_tags_native(),
             opts=ResourceOptions(parent=self),
         )
         self.bucket_name = bucket.id
