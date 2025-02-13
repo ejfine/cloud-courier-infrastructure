@@ -71,7 +71,7 @@ class Dashboard(ComponentResource):
     ):
         super().__init__(
             "labauto:OnPremComputerStatusDashboard",
-            append_resource_suffix("on-prem-computer-status-dashboard"),
+            append_resource_suffix("computer-status-dashboard", max_length=100),
             None,
         )
         widgets: list[dict[str, Any]] = []  # TODO: use JSON type hint
