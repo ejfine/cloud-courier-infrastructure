@@ -9,6 +9,9 @@ from pulumi import ResourceOptions
 from pulumi_aws_native import cloudwatch
 from pulumi_aws_native import sns
 
+from .courier_config_models import CLOUDWATCH_HEARTBEAT_NAMESPACE
+from .courier_config_models import CLOUDWATCH_INSTANCE_ID_DIMENSION_NAME
+from .courier_config_models import HEARTBEAT_METRIC_NAME
 from .models import LabComputerConfig
 
 
@@ -45,8 +48,8 @@ class NodeAlert(ComponentResource):
             evaluation_periods=1,
             alarm_description=f"The CloudCourier agent for {lab_computer_config.name} at {lab_computer_config.location.name} is unresponsive.",
             alarm_name=lab_computer_config.immutable_full_resource_name,
-            metric_name="Heartbeat",
-            namespace="CloudCourier/Heartbeat",
+            metric_name=HEARTBEAT_METRIC_NAME,
+            namespace=CLOUDWATCH_HEARTBEAT_NAMESPACE,
             period=lab_computer_config.alerting_config.timeout_seconds,
             statistic="Sum",
             threshold=1,
@@ -54,7 +57,7 @@ class NodeAlert(ComponentResource):
             dimensions=[
                 cloudwatch.AlarmDimensionArgs(name="Application", value="CloudCourier"),
                 cloudwatch.AlarmDimensionArgs(
-                    name="NodeRoleName", value=lab_computer_config.immutable_full_resource_name
+                    name=CLOUDWATCH_INSTANCE_ID_DIMENSION_NAME, value=lab_computer_config.immutable_full_resource_name
                 ),
             ],
             alarm_actions=[sns_topic.topic_arn],
@@ -94,10 +97,10 @@ class Dashboard(ComponentResource):
                     "metrics": [
                         [
                             "CloudCourier/Heartbeat",
-                            "Heartbeat",
+                            HEARTBEAT_METRIC_NAME,
                             "Application",
                             "CloudCourier",
-                            "NodeRoleName",
+                            CLOUDWATCH_INSTANCE_ID_DIMENSION_NAME,
                             node_alert.lab_computer_config.immutable_full_resource_name,
                         ]
                     ],

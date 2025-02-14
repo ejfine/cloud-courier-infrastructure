@@ -14,7 +14,10 @@ from pulumi_aws.iam import get_policy_document
 from pulumi_aws.ssm import Activation
 from pulumi_aws_native import TagArgs
 from pulumi_aws_native import iam
+from pulumi_aws_native import ssm
 
+from .courier_config_models import SSM_PARAMETER_PREFIX
+from .courier_config_models import SSM_PARAMETER_PREFIX_TO_ALIASES
 from .models import LabComputerConfig
 
 
@@ -82,16 +85,23 @@ class OnPremNode(ComponentResource):
                 lambda bucket_name: get_policy_document(
                     statements=[
                         GetPolicyDocumentStatementArgs(
+                            sid="UploadData",
                             effect="Allow",
-                            actions=["s3:PutObject"],
+                            actions=["s3:PutObject", "s3:PutObjectTagging", "s3:AbortMultipartUpload"],
                             resources=[
                                 f"arn:aws:s3:::{bucket_name}/{lab_computer_config.location.name.lower()}/{lab_computer_config.name.lower()}/*"
                             ],
                         ),
+                        GetPolicyDocumentStatementArgs(
+                            sid="ReadMetadata",  # this seems to be required to call head_object to read the ETag
+                            effect="Allow",
+                            actions=["s3:ListBucket"],
+                            resources=[f"arn:aws:s3:::{bucket_name}"],
+                        ),
                     ]
                 )
             ).json,
-            opts=ResourceOptions(parent=self),
+            opts=ResourceOptions(parent=role),
         )
         _ = RolePolicy(  # the native provider gave some odd CloudControl error about the policy, even though it has no Outputs in it
             append_resource_suffix(f"{resource_name}-put-cloudwatch-metrics", max_length=100),
@@ -114,7 +124,24 @@ class OnPremNode(ComponentResource):
                     ),
                 ]
             ).json,
-            opts=ResourceOptions(parent=self),
+            opts=ResourceOptions(parent=role),
+        )
+        _ = RolePolicy(  # the native provider gave some odd CloudControl error about the policy, even though it has no Outputs in it
+            append_resource_suffix(f"{resource_name}-ssm-params", max_length=100),
+            role=role.role_name,  # type: ignore[reportArgumentType] # pyright somehow thinks that a role_name can be None...which cannot happen
+            name="ssm-params",
+            policy=get_policy_document(
+                statements=[
+                    GetPolicyDocumentStatementArgs(
+                        sid="Read",
+                        effect="Allow",
+                        actions=["ssm:DescribeParameters"],
+                        resources=["*"],
+                        # does not appear to be a way to further lock this down
+                    ),
+                ]
+            ).json,
+            opts=ResourceOptions(parent=role),
         )
         _ = RolePolicy(  # the native provider has some CloudControl error when the policy document had an output in it
             append_resource_suffix(f"{resource_name}-create-ssm-logs", max_length=100),
@@ -138,7 +165,7 @@ class OnPremNode(ComponentResource):
                     ]
                 )
             ).json,
-            opts=ResourceOptions(parent=self),
+            opts=ResourceOptions(parent=role),
         )
         fixed_tags = common_tags()  # changes to the tags of the Activation will trigger replacement
         fixed_tags["original-computer-info"] = original_resource_name
@@ -152,6 +179,36 @@ class OnPremNode(ComponentResource):
             name=original_resource_name,
         )
         self.role_name = role.role_name
+
+        alias = append_resource_suffix(lab_computer_config.resource_name)
+        _ = ssm.Parameter(
+            append_resource_suffix(f"{lab_computer_config.original_resource_name}-alias"),
+            name=f"{SSM_PARAMETER_PREFIX_TO_ALIASES}/{lab_computer_config.immutable_full_resource_name}",
+            value=alias,
+            type=ssm.ParameterType.STRING,
+            tags=common_tags(),
+            opts=ResourceOptions(parent=self, delete_before_replace=True),
+        )
+
+        for descriptor, folder_to_watch in lab_computer_config.folders_to_watch.items():
+            _ = ssm.Parameter(
+                append_resource_suffix(f"{lab_computer_config.resource_name}-{descriptor}", max_length=100),
+                name=f"{SSM_PARAMETER_PREFIX}/{alias}/folders/{descriptor}",
+                value=Output.all(data_bucket_name, folder_to_watch).apply(  # TODO: make these kwargs not args
+                    lambda args: args[1]
+                    .model_copy(
+                        update={
+                            "s3_bucket_name": args[0],
+                            "s3_key_prefix": f"{lab_computer_config.location.name.lower()}/{lab_computer_config.name.lower()}",
+                        }
+                    )
+                    .model_dump_json()
+                ),
+                type=ssm.ParameterType.STRING,
+                tags=common_tags(),
+                opts=ResourceOptions(parent=self, delete_before_replace=True),
+            )
+
         export(
             f"-{original_resource_name}-activation-script",
             Output.all(activation.id, activation.activation_code).apply(

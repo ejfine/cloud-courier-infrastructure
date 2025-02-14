@@ -1,5 +1,9 @@
 from ephemeral_pulumi_deploy import append_resource_suffix
 from pydantic import BaseModel
+from pydantic import Field
+
+from .courier_config_models import AppConfig
+from .courier_config_models import FolderToWatch
 
 
 class AlertingConfig(BaseModel, frozen=True):
@@ -20,6 +24,8 @@ class LabComputerConfig(BaseModel, frozen=True):
     original_name: str | None = None
     original_location: ComputerLocation | None = None
     alerting_config: AlertingConfig
+    app_config: AppConfig = Field(default_factory=AppConfig)
+    folders_to_watch: dict[str, FolderToWatch] = Field(default_factory=dict)
 
     @property
     def resource_name(self) -> str:
