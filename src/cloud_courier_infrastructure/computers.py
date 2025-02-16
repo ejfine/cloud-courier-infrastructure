@@ -17,17 +17,7 @@ def create_all_computer_configs() -> list[LabComputerConfig]:
                 location=CAMBRIDGE_LAB_NAME,
                 alerting_config=AlertingConfig(emails=["ejfine@gmail.com"]),
                 folders_to_watch={"images": FolderToWatch(folder_path=r"C:\data\images")},
-            ),
-            LabComputerConfig(
-                name="QIAcuity",
-                location=CAMBRIDGE_LAB_NAME,
-                alerting_config=AlertingConfig(emails=["ejfine@gmail.com"]),
-            ),
-            LabComputerConfig(
-                name="ImageXpress",
-                location=EMERYVILLE_LAB_NAME,
-                alerting_config=AlertingConfig(emails=["ejfine@gmail.com"]),
-            ),
+            )
         ]
     )
 
