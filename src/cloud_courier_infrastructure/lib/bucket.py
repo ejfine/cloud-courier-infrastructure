@@ -1,4 +1,5 @@
 from ephemeral_pulumi_deploy import append_resource_suffix
+from ephemeral_pulumi_deploy import common_tags_native
 from pulumi import ComponentResource
 from pulumi import ResourceOptions
 from pulumi import export
@@ -62,17 +63,18 @@ class RawDataBucket(ComponentResource):
             versioning_configuration=s3.BucketVersioningConfigurationArgs(
                 status=s3.BucketVersioningConfigurationStatus.ENABLED
             ),
+            tags=common_tags_native(),
         )
         self.bucket_name = bucket.id
-        _ = self.bucket_name.apply(
-            lambda bucket_name: s3.BucketPolicy(
+
+        _ = (
+            s3.BucketPolicy(
                 append_resource_suffix("raw-data-bucket-policy"),
-                bucket=bucket_name,
-                policy_document=create_bucket_policy(bucket_name),
+                bucket=self.bucket_name,
+                policy_document=self.bucket_name.apply(lambda bucket_name: create_bucket_policy(bucket_name)),
                 opts=ResourceOptions(parent=self),
             ),
         )
         export(
             "raw-data-bucket-name", self.bucket_name
         )  # cross-stack reference used to generate the SSO Permission Set
-        self.register_outputs({"bucket_name": self.bucket_name})
