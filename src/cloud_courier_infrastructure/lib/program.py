@@ -43,11 +43,12 @@ def pulumi_program() -> None:
     _ = Dashboard(node_alerts=all_node_alerts)
     if CREATE_DISTRIBUTOR_PACKAGE:
         _ = CloudCourierAgentInstaller(
-            version="0.0.1",
+            version="0.0.3",
             files_to_package=[
                 DistributorFileToPackage(
-                    source_path="s3://manual-artifacts--artifact-stores--prod-82ba004/cloud-courier/v0.0.1/exe-windows-2022-3.12.7.zip",
-                    local_name="exe-v0.0.1.zip",
+                    source_path="s3://manual-artifacts--artifact-stores--prod-82ba004/cloud-courier/v0.0.3/exe-windows-2022-3.12.7.zip",
+                    local_name="exe-v0.0.3.zip",
                 )
             ],
+            make_package_public=True,
         )

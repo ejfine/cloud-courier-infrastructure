@@ -11,15 +11,20 @@ import boto3
 import pulumi
 import pulumi_aws
 from ephemeral_pulumi_deploy import append_resource_suffix
+from ephemeral_pulumi_deploy import common_tags
 from ephemeral_pulumi_deploy import get_aws_account_id
 from ephemeral_pulumi_deploy import get_config_str
 from pulumi import ComponentResource
 from pulumi import Output
 from pulumi import ResourceOptions
+from pulumi_aws_native import ssm
 from pulumi_command import local
 from pydantic import BaseModel
 
-from .ssm_run_commands import add_boilerplate_to_ps_script
+from .ssm_lib import FOLDER_SUBPATH
+from .ssm_lib import LOGS_DIR
+from .ssm_lib import STOP_FLAG_DIR
+from .ssm_lib import add_boilerplate_to_ps_script
 
 
 def get_central_infra_ssm_packages_bucket_name() -> str:
@@ -60,7 +65,7 @@ class UploadFileToS3Command(ComponentResource):
         file_hash = get_sha256(
             local_file_path
         )  # include the file hash in the create command so that if the local file changes, then it will be recognized and trigger an update of the resource
-        _ = local.Command(
+        self.upload_command = local.Command(
             append_resource_suffix(resource_name, max_length=100),
             create=bucket_name.apply(  # TODO: add tags to object
                 lambda bucket_name: (
@@ -106,13 +111,16 @@ def download_s3_file(*, file_to_package: DistributorFileToPackage, local_file_di
 
 
 class CloudCourierAgentInstaller(ComponentResource):
-    def __init__(self, *, files_to_package: list[DistributorFileToPackage], version: str):
+    def __init__(
+        self, *, files_to_package: list[DistributorFileToPackage], version: str, make_package_public: bool = False
+    ):
         super().__init__(
             "labauto:cloud-courier-agent-package",
             append_resource_suffix(),
             None,
         )
         self._files_to_package = files_to_package
+        self._task_name = "CloudCourierUploadAgent"
         package_base_name = "cloud-courier-agent"
         resource_name = f"{package_base_name}-{version}"
         org_home_region = get_config_str("proj:aws_org_home_region")
@@ -160,7 +168,7 @@ class CloudCourierAgentInstaller(ComponentResource):
         pkg_s3_key = f"{s3_key_prefix}/{zip_file_path.name}"
         ssm_bucket_name = get_central_infra_ssm_packages_bucket_name()
 
-        _ = UploadFileToS3Command(
+        upload_manifest_command = UploadFileToS3Command(
             resource_name=f"{resource_name}-manifest",
             bucket_name=Output.from_input(ssm_bucket_name),
             s3_key=manifest_s3_key,
@@ -169,7 +177,7 @@ class CloudCourierAgentInstaller(ComponentResource):
             delete_on_destroy=False,
             parent=self,
         )
-        _ = UploadFileToS3Command(
+        upload_package_command = UploadFileToS3Command(
             resource_name=f"{resource_name}-package",
             bucket_name=Output.from_input(ssm_bucket_name),
             s3_key=pkg_s3_key,
@@ -178,7 +186,48 @@ class CloudCourierAgentInstaller(ComponentResource):
             delete_on_destroy=False,
             parent=self,
         )
+        # _ = ssm.Document(
+        #     append_resource_suffix(resource_name),
+        #     name=append_resource_suffix(resource_name),
+        #     opts=ResourceOptions(
+        #         parent=self, depends_on=[upload_manifest_command.upload_command, upload_package_command.upload_command]
+        #     ),
+        #     document_type=ssm.DocumentType.PACKAGE,
+        #     update_method=ssm.DocumentUpdateMethod.NEW_VERSION,
+        #     version_name=version,
+        #     tags=common_tags_native(),
+        #     content=json.dumps(pkg_manifest),
+        #     attachments=[
+        #         ssm.DocumentAttachmentsSourceArgs(
+        #             key=ssm.DocumentAttachmentsSourceKey.SOURCE_URL, values=[f"s3://{ssm_bucket_name}/{s3_key_prefix}"]
+        #         )
+        #     ],
+        # )
+        package_depends_on = [upload_manifest_command.upload_command, upload_package_command.upload_command]
+        if make_package_public:
+            enable_public_packages_command = local.Command(
+                append_resource_suffix("enable-public-packages"),
+                create=f"aws ssm update-service-setting --setting-id /ssm/documents/console/public-sharing-permission --setting-value Enable --region '{pulumi_aws.config.region}'",
+                opts=ResourceOptions(parent=self),
+            )
+            package_depends_on.append(enable_public_packages_command)
+        _ = pulumi_aws.ssm.Document(  # aws-native does not support sharing permissions yet
+            append_resource_suffix(resource_name),
+            name=append_resource_suffix(resource_name),
+            opts=ResourceOptions(parent=self, depends_on=package_depends_on),
+            document_type=ssm.DocumentType.PACKAGE,
+            version_name=version,
+            content=json.dumps(pkg_manifest),
+            attachments_sources=[
+                pulumi_aws.ssm.DocumentAttachmentsSourceArgs(
+                    key=ssm.DocumentAttachmentsSourceKey.SOURCE_URL, values=[f"s3://{ssm_bucket_name}/{s3_key_prefix}"]
+                )
+            ],
+            permissions={"type": "Share", "account_ids": "All"} if make_package_public else None,
+            tags=common_tags(),
+        )
 
+    # aws ssm modify-document-permission --name cloud-courier-agent-0.0.1--cloud-courier--dev-b93113e --permission-type Share --account-ids-to-add=All
     def _generate_install_script(self) -> str:
         return inspect.cleandoc(
             "".join(
@@ -188,7 +237,7 @@ class CloudCourierAgentInstaller(ComponentResource):
                     $zipFile = "{self._files_to_package[0].local_name}"
 
                     # Define the destination as the Program Files directory
-                    $destination = $env:ProgramFiles
+                    $destination = "$env:ProgramFiles\{FOLDER_SUBPATH}"
                     """,
                     r"""
                     # Check if the ZIP file exists
@@ -209,8 +258,12 @@ class CloudCourierAgentInstaller(ComponentResource):
                     rf"""
 
                     # Define your executable path and arguments
-                    $exePath = "$env:ProgramFiles\cloud-courier\cloud-courier.exe"
-                    $arguments = "--aws-region={pulumi_aws.config.region} --stop-flag-dir=$env:ProgramData\cloud-courier\stop-flag"  # Replace with your actual command-line arguments
+                    $exePath = "$destination\cloud-courier\cloud-courier.exe"
+                    $stopFlagDir = "{STOP_FLAG_DIR}"
+                    $logsDir = "{LOGS_DIR}"
+                    New-Item -ItemType Directory -Force -Path $stopFlagDir
+                    New-Item -ItemType Directory -Force -Path $logsDir
+                    $arguments = "--aws-region={pulumi_aws.config.region} --stop-flag-dir=$stopFlagDir --log-folder=$logsDir --no-console-logging"
 
                     # Build the command string.
                     # Using cmd.exe /c start /low launches the program with low CPU priority.
@@ -218,7 +271,7 @@ class CloudCourierAgentInstaller(ComponentResource):
                     # When run as a scheduled task with "Run whether user is logged on or not",
                     # the process will not display a window.
                     $command = "cmd.exe"
-                    $cmdArguments = "/c start /low \"\" \"$exePath\" $arguments"
+                    $cmdArguments = '/c start /low "" "' + $exePath + '" ' + $arguments
 
                     # Create the scheduled task action that embeds the command directly
                     $action = New-ScheduledTaskAction -Execute $command -Argument $cmdArguments
@@ -228,9 +281,9 @@ class CloudCourierAgentInstaller(ComponentResource):
 
                     # Register the scheduled task. Running under the SYSTEM account (or with highest privileges)
                     # ensures that it runs without a window even if no user is logged on.
-                    Register-ScheduledTask -TaskName "CloudCourierUploadAgent" -Action $action -Trigger $trigger -RunLevel Highest -User "SYSTEM" -Force
+                    Register-ScheduledTask -TaskName "{self._task_name}" -Action $action -Trigger $trigger -RunLevel Highest -User "SYSTEM" -Force
 
-                    Write-Host "Scheduled task 'CloudCourierUploadAgent' created successfully."
+                    Write-Host "Scheduled task '{self._task_name}' created successfully."
 
                     Start-Process -FilePath $exePath -ArgumentList $arguments -NoNewWindow
                     """,
@@ -240,26 +293,31 @@ class CloudCourierAgentInstaller(ComponentResource):
 
     def _generate_uninstall_script(self) -> str:
         return inspect.cleandoc(
-            r"""
-            rm "$env:ProgramFiles\cloud-courier" -r -force
+            "".join(
+                [
+                    rf"""
+                    rm "$env:ProgramFiles\{FOLDER_SUBPATH}\cloud-courier" -r -force
 
-            # Define the scheduled task name
-            $taskName = "CloudCourierUploadAgent"
+                    # Define the scheduled task name
+                    $taskName = "{self._task_name}"
 
-            # Check if the task exists
-            $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-
-            if ($null -eq $task) {
-                Write-Output "Scheduled task '$taskName' does not exist."
-            }
-            else {
-                try {
-                    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
-                    Write-Output "Scheduled task '$taskName' deleted successfully."
-                }
-                catch {
-                    Write-Output "Error: Failed to delete scheduled task '$taskName'. Details: $_"
-                }
-            }
-            """
+                    # Check if the task exists
+                    $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+                    """,
+                    r"""
+                    if ($null -eq $task) {
+                        Write-Output "Scheduled task '$taskName' does not exist."
+                    }
+                    else {
+                        try {
+                            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
+                            Write-Output "Scheduled task '$taskName' deleted successfully."
+                        }
+                        catch {
+                            Write-Output "Error: Failed to delete scheduled task '$taskName'. Details: $_"
+                        }
+                    }
+                    """,
+                ]
+            )
         )
