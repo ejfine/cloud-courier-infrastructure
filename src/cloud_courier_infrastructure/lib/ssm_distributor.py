@@ -59,7 +59,7 @@ class UploadFileToS3Command(ComponentResource):
             local_file_path
         )  # include the file hash in the create command so that if the local file changes, then it will be recognized and trigger an update of the resource
         _ = local.Command(
-            append_resource_suffix(resource_name),
+            append_resource_suffix(resource_name, max_length=100),
             create=bucket_name.apply(  # TODO: add tags to object
                 lambda bucket_name: (
                     f"echo file hash: {file_hash} && aws s3api put-object --bucket {bucket_name} --key {s3_key} --body {local_file_path} --region {bucket_region}"
