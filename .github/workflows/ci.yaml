@@ -77,7 +77,7 @@ jobs:
       AWS_REGION: us-east-1
       PULUMI_STACK_NAME: test-${{ needs.get-values.outputs.pr-short-num }}
       PYTHON_VERSION: 3.12.7
-      DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure
+      DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure.lib
       PULUMI_PREVIEW: true
       PREVIEW_ROLE_NAME: InfraPreview--cloud-courier-infrastructure
       PULUMI_UP_ROLE_NAME: InfraDeploy--cloud-courier-infrastructure
@@ -92,7 +92,7 @@ jobs:
       AWS_REGION: us-east-1
       PULUMI_STACK_NAME: staging
       PYTHON_VERSION: 3.12.7
-      DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure
+      DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure.lib
       PULUMI_PREVIEW: true
       PREVIEW_ROLE_NAME: InfraPreview--cloud-courier-infrastructure
       PULUMI_UP: ${{ github.ref == 'refs/heads/main' }}
@@ -107,7 +107,7 @@ jobs:
       AWS_REGION: us-east-1
       PULUMI_STACK_NAME: prod
       PYTHON_VERSION: 3.12.7
-      DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure
+      DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure.lib
       PULUMI_PREVIEW: true
       PREVIEW_ROLE_NAME: InfraPreview--cloud-courier-infrastructure
       PULUMI_UP: true
