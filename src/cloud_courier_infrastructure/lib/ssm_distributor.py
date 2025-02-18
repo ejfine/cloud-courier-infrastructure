@@ -1,4 +1,5 @@
 import hashlib
+import inspect
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,7 @@ from zipfile import ZipFile
 
 import boto3
 import pulumi
+import pulumi_aws
 from ephemeral_pulumi_deploy import append_resource_suffix
 from ephemeral_pulumi_deploy import get_aws_account_id
 from ephemeral_pulumi_deploy import get_config_str
@@ -178,7 +180,86 @@ class CloudCourierAgentInstaller(ComponentResource):
         )
 
     def _generate_install_script(self) -> str:
-        return ""
+        return inspect.cleandoc(
+            "".join(
+                [
+                    rf"""
+                    # Specify the path to your ZIP file
+                    $zipFile = "{self._files_to_package[0].local_name}"
+
+                    # Define the destination as the Program Files directory
+                    $destination = $env:ProgramFiles
+                    """,
+                    r"""
+                    # Check if the ZIP file exists
+                    if (-Not (Test-Path $zipFile)) {
+                        Write-Error "The ZIP file '$zipFile' does not exist."
+                        exit 1
+                    }
+
+                    # Attempt to extract the contents of the ZIP file
+                    try {
+                        Expand-Archive -LiteralPath $zipFile -DestinationPath $destination -Force
+                        Write-Host "Successfully extracted '$zipFile' to '$destination'."
+                    }
+                    catch {
+                        Write-Error "An error occurred during extraction: $_"
+                        exit 1
+                    }""",
+                    rf"""
+
+                    # Define your executable path and arguments
+                    $exePath = "$env:ProgramFiles\cloud-courier\cloud-courier.exe"
+                    $arguments = "--aws-region={pulumi_aws.config.region} --stop-flag-dir=$env:ProgramData\cloud-courier\stop-flag"  # Replace with your actual command-line arguments
+
+                    # Build the command string.
+                    # Using cmd.exe /c start /low launches the program with low CPU priority.
+                    # The empty quotes after start represent the window title.
+                    # When run as a scheduled task with "Run whether user is logged on or not",
+                    # the process will not display a window.
+                    $command = "cmd.exe"
+                    $cmdArguments = "/c start /low \"\" \"$exePath\" $arguments"
+
+                    # Create the scheduled task action that embeds the command directly
+                    $action = New-ScheduledTaskAction -Execute $command -Argument $cmdArguments
+
+                    # Create a trigger to run the task at system startup
+                    $trigger = New-ScheduledTaskTrigger -AtStartup
+
+                    # Register the scheduled task. Running under the SYSTEM account (or with highest privileges)
+                    # ensures that it runs without a window even if no user is logged on.
+                    Register-ScheduledTask -TaskName "CloudCourierUploadAgent" -Action $action -Trigger $trigger -RunLevel Highest -User "SYSTEM" -Force
+
+                    Write-Host "Scheduled task 'CloudCourierUploadAgent' created successfully."
+
+                    Start-Process -FilePath $exePath -ArgumentList $arguments -NoNewWindow
+                    """,
+                ]
+            )
+        )
 
     def _generate_uninstall_script(self) -> str:
-        return ""
+        return inspect.cleandoc(
+            r"""
+            rm "$env:ProgramFiles\cloud-courier" -r -force
+
+            # Define the scheduled task name
+            $taskName = "CloudCourierUploadAgent"
+
+            # Check if the task exists
+            $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+
+            if ($null -eq $task) {
+                Write-Output "Scheduled task '$taskName' does not exist."
+            }
+            else {
+                try {
+                    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
+                    Write-Output "Scheduled task '$taskName' deleted successfully."
+                }
+                catch {
+                    Write-Output "Error: Failed to delete scheduled task '$taskName'. Details: $_"
+                }
+            }
+            """
+        )
