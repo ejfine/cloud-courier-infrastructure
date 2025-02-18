@@ -1,5 +1,5 @@
 # Changes here will be overwritten by Copier
-_commit: v0.0.3
+_commit: v0.0.3-1-gf48e5ba
 _src_path: gh:LabAutomationAndScreening/copier-cloud-courier-infrastructure.git
 aws_development_account_id: '423623840054'
 aws_identity_center_id: d-9067c20053
@@ -8,6 +8,7 @@ aws_production_account_id: '872515290027'
 aws_region_for_stack: us-east-1
 aws_staging_account_id: '354918380870'
 aws_test_account_id: '423623840054'
+create_private_distributor_installation_packaged: true
 description: Infra for cloud courier
 python_version: 3.12.7
 repo_name: cloud-courier-infrastructure
