@@ -52,7 +52,7 @@ class UploadFileToS3Command(ComponentResource):
     ) -> None:
         super().__init__(
             "labauto:UploadFileToS3",
-            append_resource_suffix(resource_name),
+            append_resource_suffix(resource_name, max_length=100),
             None,
         )
         file_hash = get_sha256(
@@ -110,6 +110,7 @@ class CloudCourierAgentInstaller(ComponentResource):
             append_resource_suffix(),
             None,
         )
+        self._files_to_package = files_to_package
         package_base_name = "cloud-courier-agent"
         resource_name = f"{package_base_name}-{version}"
         org_home_region = get_config_str("proj:aws_org_home_region")
