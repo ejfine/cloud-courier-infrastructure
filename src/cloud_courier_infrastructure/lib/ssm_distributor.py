@@ -11,7 +11,7 @@ import boto3
 import pulumi
 import pulumi_aws
 from ephemeral_pulumi_deploy import append_resource_suffix
-from ephemeral_pulumi_deploy import common_tags
+from ephemeral_pulumi_deploy import common_tags_native
 from ephemeral_pulumi_deploy import get_aws_account_id
 from ephemeral_pulumi_deploy import get_config_str
 from pulumi import ComponentResource
@@ -111,9 +111,7 @@ def download_s3_file(*, file_to_package: DistributorFileToPackage, local_file_di
 
 
 class CloudCourierAgentInstaller(ComponentResource):
-    def __init__(
-        self, *, files_to_package: list[DistributorFileToPackage], version: str, make_package_public: bool = False
-    ):
+    def __init__(self, *, files_to_package: list[DistributorFileToPackage], version: str):
         super().__init__(
             "labauto:cloud-courier-agent-package",
             append_resource_suffix(),
@@ -186,48 +184,24 @@ class CloudCourierAgentInstaller(ComponentResource):
             delete_on_destroy=False,
             parent=self,
         )
-        # _ = ssm.Document(
-        #     append_resource_suffix(resource_name),
-        #     name=append_resource_suffix(resource_name),
-        #     opts=ResourceOptions(
-        #         parent=self, depends_on=[upload_manifest_command.upload_command, upload_package_command.upload_command]
-        #     ),
-        #     document_type=ssm.DocumentType.PACKAGE,
-        #     update_method=ssm.DocumentUpdateMethod.NEW_VERSION,
-        #     version_name=version,
-        #     tags=common_tags_native(),
-        #     content=json.dumps(pkg_manifest),
-        #     attachments=[
-        #         ssm.DocumentAttachmentsSourceArgs(
-        #             key=ssm.DocumentAttachmentsSourceKey.SOURCE_URL, values=[f"s3://{ssm_bucket_name}/{s3_key_prefix}"]
-        #         )
-        #     ],
-        # )
-        package_depends_on = [upload_manifest_command.upload_command, upload_package_command.upload_command]
-        if make_package_public:
-            enable_public_packages_command = local.Command(
-                append_resource_suffix("enable-public-packages"),
-                create=f"aws ssm update-service-setting --setting-id /ssm/documents/console/public-sharing-permission --setting-value Enable --region '{pulumi_aws.config.region}'",
-                opts=ResourceOptions(parent=self),
-            )
-            package_depends_on.append(enable_public_packages_command)
-        _ = pulumi_aws.ssm.Document(  # aws-native does not support sharing permissions yet
+        _ = ssm.Document(
             append_resource_suffix(resource_name),
             name=append_resource_suffix(resource_name),
-            opts=ResourceOptions(parent=self, depends_on=package_depends_on),
+            opts=ResourceOptions(
+                parent=self, depends_on=[upload_manifest_command.upload_command, upload_package_command.upload_command]
+            ),
             document_type=ssm.DocumentType.PACKAGE,
+            update_method=ssm.DocumentUpdateMethod.NEW_VERSION,
             version_name=version,
+            tags=common_tags_native(),
             content=json.dumps(pkg_manifest),
-            attachments_sources=[
-                pulumi_aws.ssm.DocumentAttachmentsSourceArgs(
+            attachments=[
+                ssm.DocumentAttachmentsSourceArgs(
                     key=ssm.DocumentAttachmentsSourceKey.SOURCE_URL, values=[f"s3://{ssm_bucket_name}/{s3_key_prefix}"]
                 )
             ],
-            permissions={"type": "Share", "account_ids": "All"} if make_package_public else None,
-            tags=common_tags(),
         )
 
-    # aws ssm modify-document-permission --name cloud-courier-agent-0.0.1--cloud-courier--dev-b93113e --permission-type Share --account-ids-to-add=All
     def _generate_install_script(self) -> str:
         return inspect.cleandoc(
             "".join(
@@ -284,8 +258,11 @@ class CloudCourierAgentInstaller(ComponentResource):
                     Register-ScheduledTask -TaskName "{self._task_name}" -Action $action -Trigger $trigger -RunLevel Highest -User "SYSTEM" -Force
 
                     Write-Host "Scheduled task '{self._task_name}' created successfully."
-
-                    Start-Process -FilePath $exePath -ArgumentList $arguments -NoNewWindow
+                    """,
+                    r"""
+                    $commandLine = "`"$exePath`" $arguments"
+                    # Launch as a completely separate process. Using Start-Process will cause the SSM Command to hang, even without -Wait.
+                    Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $commandLine }
                     """,
                 ]
             )

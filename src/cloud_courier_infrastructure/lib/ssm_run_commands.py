@@ -62,7 +62,9 @@ class CloudCourierSsmCommands(ComponentResource):
                                                 """,
                                                 # console logging causes weird problems with SSM Run command interpreting it as a Powershell command to try and execute somehow
                                                 r"""
-                                                    Start-Process -FilePath $exePath -ArgumentList $arguments -NoNewWindow -RedirectStandardOutput "NUL"
+                                                    $commandLine = "`"$exePath`" $arguments"
+                                                    # Launch as a completely separate process. Using Start-Process will cause the SSM Command to hang, even without -Wait.
+                                                    Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $commandLine }
 
                                                     # Initially wait for 10 seconds to ensure it started without error
                                                     Start-Sleep -Seconds 10

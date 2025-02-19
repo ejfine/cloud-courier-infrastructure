@@ -50,5 +50,4 @@ def pulumi_program() -> None:
                     local_name="exe-v0.0.3.zip",
                 )
             ],
-            make_package_public=True,
         )
