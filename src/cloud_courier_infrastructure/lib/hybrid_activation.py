@@ -186,6 +186,13 @@ class OnPremNode(ComponentResource):
                             ),
                         ],
                     ),
+                    GetPolicyDocumentStatementArgs(
+                        sid="FindInstanceId",
+                        effect="Allow",
+                        actions=["ssm:DescribeInstanceInformation"],
+                        resources=["*"],
+                        # does not appear to be an easy way to lock this down further, although maybe tags might help. but seems generally low risk
+                    ),
                 ]
             ).json,
             opts=ResourceOptions(parent=role),
