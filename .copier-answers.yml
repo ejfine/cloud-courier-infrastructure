@@ -1,5 +1,5 @@
 # Changes here will be overwritten by Copier
-_commit: v0.0.5-1-gfaf9813
+_commit: v0.0.6
 _src_path: gh:LabAutomationAndScreening/copier-cloud-courier-infrastructure.git
 automatically_obtain_executable_from_github: true
 aws_development_account_id: '423623840054'
