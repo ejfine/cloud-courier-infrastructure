@@ -1,5 +1,5 @@
 # Changes here will be overwritten by Copier
-_commit: v0.0.6
+_commit: v0.0.6-1-g65eadca
 _src_path: gh:LabAutomationAndScreening/copier-cloud-courier-infrastructure.git
 automatically_obtain_executable_from_github: true
 aws_development_account_id: '423623840054'
@@ -10,6 +10,8 @@ aws_region_for_stack: us-east-1
 aws_staging_account_id: '354918380870'
 aws_test_account_id: '423623840054'
 description: Infra for cloud courier
+is_open_source: true
+python_package_registry: PyPI
 python_version: 3.12.7
 repo_name: cloud-courier-infrastructure
 repo_org_name: ejfine
