@@ -16,7 +16,7 @@
     },
     "ghcr.io/devcontainers/features/python:1.8.0": {
       // https://github.com/devcontainers/features/blob/main/src/python/devcontainer-feature.json
-      "version": "3.12.7",
+      "version": "3.12.11",
       "installTools": false,
       "optimize": true
     },

@@ -24,7 +24,7 @@ jobs:
     needs: [ get-values ]
     uses: ./.github/workflows/pre-commit.yaml
     with:
-      python-version: 3.12.7
+      python-version: 3.12.11
 
   ephemeral-test:
     uses: ./.github/workflows/pulumi-aws.yml
@@ -33,7 +33,7 @@ jobs:
     with:
       AWS_REGION: us-east-1
       PULUMI_STACK_NAME: test-${{ needs.get-values.outputs.pr-short-num }}
-      PYTHON_VERSION: 3.12.7
+      PYTHON_VERSION: 3.12.11
       DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure.lib
       PULUMI_PREVIEW: true
       PREVIEW_ROLE_NAME: InfraPreview--cloud-courier-infrastructure
@@ -48,7 +48,7 @@ jobs:
     with:
       AWS_REGION: us-east-1
       PULUMI_STACK_NAME: staging
-      PYTHON_VERSION: 3.12.7
+      PYTHON_VERSION: 3.12.11
       DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure.lib
       PULUMI_PREVIEW: true
       PREVIEW_ROLE_NAME: InfraPreview--cloud-courier-infrastructure
@@ -63,7 +63,7 @@ jobs:
     with:
       AWS_REGION: us-east-1
       PULUMI_STACK_NAME: prod
-      PYTHON_VERSION: 3.12.7
+      PYTHON_VERSION: 3.12.11
       DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure.lib
       PULUMI_PREVIEW: true
       PREVIEW_ROLE_NAME: InfraPreview--cloud-courier-infrastructure

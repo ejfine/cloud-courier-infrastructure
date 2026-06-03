@@ -14,7 +14,7 @@ install_claude_cli: true
 is_open_source: true
 pull_from_ecr: false
 python_package_registry: PyPI
-python_version: 3.12.7
+python_version: 3.12.11
 repo_name: cloud-courier-infrastructure
 repo_org_name: ejfine
 ssh_port_number: 52370
