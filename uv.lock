@@ -552,7 +552,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "boto3-stubs", extras = ["all"], specifier = ">=1.42.92" },
+    { name = "boto3-stubs", extras = ["all"], specifier = ">=1.43.21" },
     { name = "pyright", specifier = ">=1.1.409" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
