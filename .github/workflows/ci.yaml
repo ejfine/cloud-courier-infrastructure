@@ -114,7 +114,7 @@ jobs:
       DEPLOY_SCRIPT_MODULE_NAME: cloud_courier_infrastructure.lib
       PULUMI_PREVIEW: true
       PREVIEW_ROLE_NAME: InfraPreview--cloud-courier-infrastructure
-      PULUMI_UP: true
+      PULUMI_UP: ${{ github.ref == 'refs/heads/main' }}
       PULUMI_UP_ROLE_NAME: InfraDeploy--cloud-courier-infrastructure
       AWS_ACCOUNT_ID: "872515290027"
       SHOW_PREVIEW_COMMENT_ON_PR: ${{ github.event_name == 'pull_request' }}
