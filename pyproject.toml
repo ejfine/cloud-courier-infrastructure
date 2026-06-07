@@ -33,7 +33,7 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "pytest-randomly>=4.1.0",
-    "boto3-stubs[all]>=1.42.92",
+    "boto3-stubs[all]>=1.43.24",
 ]
 
 
