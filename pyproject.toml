@@ -12,9 +12,9 @@ dependencies = [
 
 
     # Managed by upstream template
-    "pulumi>=3.234.0",
-    "pulumi-aws>=7.28.0",
-    "pulumi-aws-native>=1.63.0",
+    "pulumi>=3.247.0",
+    "pulumi-aws>=7.34.0",
+    "pulumi-aws-native>=1.69.0",
     "pulumi-command>=1.2.1",
     "ephemeral-pulumi-deploy>=0.0.6",
     "boto3>=1.42.92",
